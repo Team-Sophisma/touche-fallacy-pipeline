@@ -1,0 +1,14 @@
+experiment_name: fallacy_binary_readable_export
+
+dataset:
+  config_path: configs/dataset/touche_fallacy.yaml
+  task_name: fallacy_binary
+  text_variant: text_base
+  argument_variant: argument_base
+
+outputs:
+  train_csv: data/processed/fallacy_binary_train_readable.csv
+  test_csv: data/processed/fallacy_binary_test_readable.csv
+  train_preview: data/processed/fallacy_binary_train_preview.md
+  test_preview: data/processed/fallacy_binary_test_preview.md
+  summary: data/reports/fallacy_binary_summary.json

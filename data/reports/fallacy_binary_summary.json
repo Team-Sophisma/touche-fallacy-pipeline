@@ -1,0 +1,8 @@
+{
+  "total_train_samples": 938,
+  "task_name": "fallacy_binary",
+  "label_distribution": {
+    "1": 465,
+    "0": 473
+  }
+}

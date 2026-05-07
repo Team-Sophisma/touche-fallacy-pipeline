@@ -1,0 +1,27 @@
+
+dataset_name: touche_fallacy_2026
+adapter_name: touche_fallacy
+
+paths:
+  train: data/raw/touchefallacy_2026_train.jsonl
+  test: data/raw/touchefallacy_2026_test_task.jsonl
+
+defaults:
+  text_variant: text_base
+  argument_variant: argument_base
+
+available_text_variants:
+  - text_raw
+  - text_base
+  - text_enhanced
+
+available_argument_variants:
+  - argument_base
+  - argument_enhanced
+
+available_tasks:
+  - fallacy_binary
+  - fallacy_type
+  - resembles_fallacy
+  - argument_goal
+  - argument_basis
