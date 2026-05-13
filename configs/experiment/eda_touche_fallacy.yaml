@@ -1,0 +1,17 @@
+experiment_name: touche_fallacy_eda
+
+dataset:
+  config_path: configs/dataset/touche_fallacy.yaml
+  task_name: fallacy_binary
+  text_variant: text_base
+  argument_variant: argument_base
+
+eda:
+  analyze_train: true
+  analyze_test: true
+  compare_base_enhanced: true
+  generate_plots: true
+
+outputs:
+  report_dir: data/reports/eda
+  plots_dir: data/reports/eda/plots
