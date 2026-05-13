@@ -10,3 +10,13 @@ class TextSample:
     label: Optional[str]
     task_name: str
     meta: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class PreprocessedSample:
+    id: str
+    task: str
+    text: str
+    label: Optional[str]
+    tag: str
+    meta: dict[str, Any] = field(default_factory=dict)

@@ -1,0 +1,26 @@
+experiment_name: preprocess_touche_enhanced
+
+dataset:
+  config_path: configs/dataset/touche_fallacy.yaml
+  tag: enhanced
+
+input:
+  text_field: text_enhanced
+  argument_field: argument_enhanced
+  include_title: false
+  include_parent: false
+
+tasks:
+  - name: fallacy_detection
+    enabled: true
+  - name: fallacy_classification
+    enabled: true
+  - name: scheme_classification
+    enabled: false
+
+split:
+  validation_size: 0.2
+  random_seed: 42
+
+outputs:
+  output_dir: data/processed/preprocessed/enhanced
