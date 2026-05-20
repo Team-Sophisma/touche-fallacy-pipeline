@@ -1,7 +1,13 @@
 from abc import ABC, abstractmethod
 from typing import Sequence
 
-from src.domain.entities import PreprocessedSample, TextSample
+from src.domain.entities import (
+    EntityMention,
+    PreprocessedSample,
+    RoleMention,
+    SentimentResult,
+    TextSample,
+)
 
 
 class DatasetAdapter(ABC):
@@ -60,4 +66,30 @@ class PreprocessedDatasetWriter(ABC):
         summary: dict,
         output_path: str,
     ) -> None:
+        pass
+
+
+class EntityExtractor(ABC):
+    @abstractmethod
+    def extract(self, text: str) -> list[EntityMention]:
+        pass
+
+
+class EntityRoleClassifier(ABC):
+    @abstractmethod
+    def classify_roles(
+        self,
+        text: str,
+        entities: list[EntityMention],
+    ) -> list[RoleMention]:
+        pass
+
+
+class SentimentAnalyzer(ABC):
+    @abstractmethod
+    def analyze(self, text: str) -> SentimentResult:
+        pass
+
+    @abstractmethod
+    def analyze_batch(self, texts: Sequence[str]) -> list[SentimentResult]:
         pass

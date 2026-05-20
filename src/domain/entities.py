@@ -20,3 +20,28 @@ class PreprocessedSample:
     label: Optional[str]
     tag: str
     meta: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class EntityMention:
+    text: str
+    label: str
+    start_char: int
+    end_char: int
+
+
+@dataclass(frozen=True)
+class RoleMention:
+    text: str
+    original_label: str
+    role: str
+    score: float
+    start_char: int
+    end_char: int
+
+
+@dataclass(frozen=True)
+class SentimentResult:
+    label: str
+    score: float
+    scores: dict[str, float] = field(default_factory=dict)

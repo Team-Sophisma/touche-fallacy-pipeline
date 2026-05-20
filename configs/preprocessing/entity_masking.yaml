@@ -1,0 +1,187 @@
+method:
+  entity_extractor: spacy
+  role_classifier: hybrid_rules_zero_shot
+
+dataset:
+  task_name: fallacy_type
+  text_variant: text_base
+  argument_variant: argument_base
+
+spacy:
+  model_name: en_core_web_sm
+  include_labels:
+    - PERSON
+    - ORG
+    - GPE
+    - NORP
+    - FAC
+    - LOC
+    - EVENT
+    - WORK_OF_ART
+
+zero_shot:
+  model_name: facebook/bart-large-mnli
+  confidence_threshold: 0.55
+  batch_size: 8
+  device: auto
+  fallback_to_ner_label: true
+  context_window_chars: 180
+
+roles:
+  - SCIENTIFIC_AUTHORITY
+  - INSTITUTIONAL_AUTHORITY
+  - RELIGIOUS_AUTHORITY
+  - POLITICAL_AUTHORITY
+  - CELEBRITY_OR_PUBLIC_FIGURE
+  - PERSONAL_SOURCE
+  - ANONYMOUS_SOURCE
+  - POPULAR_GROUP
+  - TRADITION_SOURCE
+  - NATURAL_CONCEPT
+  - CAUSAL_CHAIN_EVENT
+  - WORSE_PROBLEM
+  - OTHER
+
+role_descriptions:
+  SCIENTIFIC_AUTHORITY: scientific or technical expert authority
+  INSTITUTIONAL_AUTHORITY: official institution organization or professional authority
+  RELIGIOUS_AUTHORITY: religious authority sacred text or faith leader
+  POLITICAL_AUTHORITY: political leader government official or political source
+  CELEBRITY_OR_PUBLIC_FIGURE: celebrity famous person or public figure
+  PERSONAL_SOURCE: friend family personal acquaintance or personal testimony
+  ANONYMOUS_SOURCE: anonymous unnamed unspecified or unknown source
+  POPULAR_GROUP: majority crowd popular opinion or large social group
+  TRADITION_SOURCE: tradition custom historical practice or long-standing belief
+  NATURAL_CONCEPT: nature biology natural law or physical-world concept
+  CAUSAL_CHAIN_EVENT: event cause consequence outcome or causal chain
+  WORSE_PROBLEM: worse problem greater harm alternative threat or more serious issue
+
+ner_role_candidates:
+  PERSON:
+    - SCIENTIFIC_AUTHORITY
+    - RELIGIOUS_AUTHORITY
+    - POLITICAL_AUTHORITY
+    - CELEBRITY_OR_PUBLIC_FIGURE
+    - PERSONAL_SOURCE
+  ORG:
+    - INSTITUTIONAL_AUTHORITY
+    - POLITICAL_AUTHORITY
+    - ANONYMOUS_SOURCE
+  GPE:
+    - POLITICAL_AUTHORITY
+  NORP:
+    - POPULAR_GROUP
+    - TRADITION_SOURCE
+    - POLITICAL_AUTHORITY
+  FAC:
+    - INSTITUTIONAL_AUTHORITY
+  LOC:
+    - NATURAL_CONCEPT
+    - TRADITION_SOURCE
+  EVENT:
+    - CAUSAL_CHAIN_EVENT
+    - WORSE_PROBLEM
+    - TRADITION_SOURCE
+  WORK_OF_ART:
+    - INSTITUTIONAL_AUTHORITY
+    - RELIGIOUS_AUTHORITY
+    - TRADITION_SOURCE
+
+role_rules:
+  context_window_chars: 120
+  score: 1.0
+  known_entities:
+    SCIENTIFIC_AUTHORITY:
+      - Einstein
+      - Stephen Hawking
+      - Eric Berg
+      - Dr. Eric Berg
+    INSTITUTIONAL_AUTHORITY:
+      - BBC
+      - CDC
+      - WHO
+      - JD
+      - MBA
+      - MSF
+    RELIGIOUS_AUTHORITY:
+      - Jesus
+      - Bible
+      - Quran
+      - Qur'an
+    POLITICAL_AUTHORITY:
+      - Donald Trump
+      - Boris Johnson
+      - Joe Biden
+      - Andrew Yang
+    CELEBRITY_OR_PUBLIC_FIGURE:
+      - Shakespeare
+      - William Shakespeare
+      - Nathaniel Hawthorne
+      - Walt Whitman
+      - Mark Twain
+      - Damien Woody
+    PERSONAL_SOURCE:
+      - my friend
+      - my dad
+      - my mom
+      - my father
+      - my mother
+  context_keywords:
+    SCIENTIFIC_AUTHORITY:
+      - Dr.
+      - doctor
+      - professor
+      - scientist
+      - researcher
+      - expert
+      - medical field
+      - dietary intervention
+    INSTITUTIONAL_AUTHORITY:
+      - official
+      - institution
+      - reputable
+      - news source
+      - organization
+    RELIGIOUS_AUTHORITY:
+      - god
+      - bible
+      - church
+      - religious
+      - scripture
+    POLITICAL_AUTHORITY:
+      - president
+      - prime minister
+      - senator
+      - government
+      - politician
+    PERSONAL_SOURCE:
+      - my friend
+      - friend
+      - my family
+      - someone I know
+    ANONYMOUS_SOURCE:
+      - anonymous
+      - unnamed
+      - unknown source
+      - people say
+      - they say
+      - some guy
+    POPULAR_GROUP:
+      - everyone
+      - everybody
+      - most people
+      - the crowd
+      - group
+    TRADITION_SOURCE:
+      - tradition
+      - traditional
+      - custom
+      - historically
+      - long-standing
+
+processing:
+  max_samples: 20
+
+outputs:
+  output_dir: data/processed/entity_masking
+  masked_train_csv: data/processed/entity_masking/masked_train_samples.csv

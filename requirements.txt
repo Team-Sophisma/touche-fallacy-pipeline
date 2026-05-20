@@ -13,6 +13,11 @@ datasets
 evaluate
 accelerate
 
+# Entity masking / NER
+spacy
+# Install the English spaCy model separately:
+# python -m spacy download en_core_web_sm
+
 # Metrics and visualization
 matplotlib
 seaborn
