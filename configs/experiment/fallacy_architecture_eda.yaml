@@ -1,0 +1,37 @@
+experiment_name: fallacy_architecture_eda
+
+dataset:
+  config_path: configs/dataset/touche_fallacy.yaml
+  task_name: fallacy_type
+  text_variant: text_base
+  argument_variant: argument_base
+
+sampling:
+  random_seed: 42
+  examples_per_fallacy: 5
+
+outliers:
+  enabled: true
+  iqr_multiplier: 3.0
+  max_examples_per_metric: 50
+  metrics:
+    - source_word_count
+    - argument_word_count
+    - text_base_word_count
+    - text_enhanced_word_count
+    - base_claim_word_count
+    - base_supports_word_count
+    - base_support_count
+    - enhanced_claim_word_count
+    - enhanced_supports_word_count
+    - enhanced_support_count
+  group_columns:
+    - fallacy_type
+
+extra_splits:
+  validation:
+    format: preprocessed_jsonl
+    path: data/processed/preprocessed/enhanced/fallacy_classification/validation.jsonl
+
+outputs:
+  report_dir: data/reports/fallacy_architecture_eda
