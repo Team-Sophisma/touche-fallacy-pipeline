@@ -2,6 +2,7 @@ import yaml
 
 from src.infrastructure.datasets.touche_fallacy_adapter import ToucheFallacyAdapter
 from src.infrastructure.eda.dataset_profiler import DatasetProfiler
+from src.infrastructure.eda.outlier_analyzer import OutlierAnalyzer
 from src.infrastructure.persistence.eda_report_writer import EDAReportWriter
 from src.infrastructure.visualization.eda_plots import EDAPlotter
 from src.application.services.eda_service import EDAService
@@ -38,11 +39,25 @@ def main():
     if experiment_config["eda"].get("generate_plots", True):
         plotter = EDAPlotter(plots_dir=plots_dir)
 
+    outlier_config = experiment_config.get("outliers", {})
+    outlier_analyzer = None
+    if outlier_config.get("enabled", True):
+        outlier_analyzer = OutlierAnalyzer(
+            metrics=outlier_config.get("metrics"),
+            group_columns=outlier_config.get("group_columns", []),
+            iqr_multiplier=outlier_config.get("iqr_multiplier", 3.0),
+            max_examples_per_metric=outlier_config.get(
+                "max_examples_per_metric",
+                50,
+            ),
+        )
+
     service = EDAService(
         dataset_adapter=dataset_adapter,
         profiler=profiler,
         writer=writer,
         plotter=plotter,
+        outlier_analyzer=outlier_analyzer,
     )
 
     service.run()

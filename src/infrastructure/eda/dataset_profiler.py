@@ -1,4 +1,3 @@
-from collections import Counter
 from typing import Sequence
 
 import pandas as pd
@@ -7,11 +6,15 @@ from src.domain.entities import TextSample
 
 
 class DatasetProfiler:
+    """
+    Converts TextSample objects into a pandas DataFrame suitable for EDA.
+    """
+
     def samples_to_dataframe(self, samples: Sequence[TextSample]) -> pd.DataFrame:
         rows = []
 
         for sample in samples:
-            meta = sample.meta
+            meta = sample.meta or {}
 
             argument_goal = meta.get("argument_goal")
             argument_basis = meta.get("argument_basis")
@@ -20,15 +23,47 @@ class DatasetProfiler:
             if argument_goal and argument_basis:
                 argument_scheme = f"{argument_goal}-{argument_basis}"
 
+            base_supports = self._safe_list(meta.get("base_supports"))
+            enhanced_supports = self._safe_list(meta.get("enhanced_supports"))
+
+            base_supports_text = " ".join(base_supports)
+            enhanced_supports_text = " ".join(enhanced_supports)
+
             rows.append({
                 "id": sample.id,
                 "task_name": sample.task_name,
                 "label": sample.label,
+
                 "source_text": sample.source_text,
                 "argument_text": sample.argument_text,
 
                 "source_word_count": self._word_count(sample.source_text),
                 "argument_word_count": self._word_count(sample.argument_text),
+
+                "title": meta.get("title"),
+                "parent_text": meta.get("parent_text"),
+
+                "text_raw": meta.get("text_raw"),
+                "text_base": meta.get("text_base"),
+                "text_enhanced": meta.get("text_enhanced"),
+
+                "text_raw_word_count": self._word_count(meta.get("text_raw")),
+                "text_base_word_count": self._word_count(meta.get("text_base")),
+                "text_enhanced_word_count": self._word_count(meta.get("text_enhanced")),
+
+                "base_claim": meta.get("base_claim"),
+                "base_supports": base_supports,
+                "base_supports_text": base_supports_text,
+                "base_claim_word_count": self._word_count(meta.get("base_claim")),
+                "base_supports_word_count": self._word_count(base_supports_text),
+                "base_support_count": len(base_supports),
+
+                "enhanced_claim": meta.get("enhanced_claim"),
+                "enhanced_supports": enhanced_supports,
+                "enhanced_supports_text": enhanced_supports_text,
+                "enhanced_claim_word_count": self._word_count(meta.get("enhanced_claim")),
+                "enhanced_supports_word_count": self._word_count(enhanced_supports_text),
+                "enhanced_support_count": len(enhanced_supports),
 
                 "fallacy_exists": meta.get("fallacy_exists"),
                 "fallacy_type": meta.get("fallacy_type"),
@@ -37,26 +72,16 @@ class DatasetProfiler:
                 "argument_goal": argument_goal,
                 "argument_basis": argument_basis,
                 "argument_scheme": argument_scheme,
-
-                "text_raw_word_count": self._word_count(meta.get("text_raw", "")),
-                "text_base_word_count": self._word_count(meta.get("text_base", "")),
-                "text_enhanced_word_count": self._word_count(meta.get("text_enhanced", "")),
-
-                "base_claim_word_count": self._word_count(meta.get("base_claim", "")),
-                "enhanced_claim_word_count": self._word_count(meta.get("enhanced_claim", "")),
-
-                "base_support_count": len(meta.get("base_supports", []) or []),
-                "enhanced_support_count": len(meta.get("enhanced_supports", []) or []),
             })
 
         return pd.DataFrame(rows)
 
     def summarize_dataframe(self, df: pd.DataFrame) -> dict:
         return {
-            "total_samples": len(df),
-            "duplicate_id_count": int(df["id"].duplicated().sum()),
-            "empty_source_text_count": int((df["source_text"].fillna("").str.strip() == "").sum()),
-            "empty_argument_text_count": int((df["argument_text"].fillna("").str.strip() == "").sum()),
+            "total_samples": int(len(df)),
+            "duplicate_id_count": int(df["id"].duplicated().sum()) if "id" in df else 0,
+            "empty_source_text_count": self._empty_text_count(df, "source_text"),
+            "empty_argument_text_count": self._empty_text_count(df, "argument_text"),
 
             "label_distribution": self._value_counts(df, "label"),
             "fallacy_exists_distribution": self._value_counts(df, "fallacy_exists"),
@@ -68,50 +93,92 @@ class DatasetProfiler:
 
             "source_word_count_stats": self._numeric_stats(df, "source_word_count"),
             "argument_word_count_stats": self._numeric_stats(df, "argument_word_count"),
+            "base_claim_word_count_stats": self._numeric_stats(df, "base_claim_word_count"),
+            "base_supports_word_count_stats": self._numeric_stats(df, "base_supports_word_count"),
             "base_support_count_stats": self._numeric_stats(df, "base_support_count"),
         }
 
     def create_cross_tables(self, df: pd.DataFrame) -> dict[str, pd.DataFrame]:
-        tables = {}
+        return {
+            "fallacy_exists_by_resembles": self._cross_table(
+                df,
+                "fallacy_exists",
+                "resembles_fallacy",
+            ),
+            "fallacy_type_by_argument_scheme": self._cross_table(
+                df,
+                "fallacy_type",
+                "argument_scheme",
+            ),
+            "argument_goal_by_basis": self._cross_table(
+                df,
+                "argument_goal",
+                "argument_basis",
+            ),
+        }
 
-        tables["fallacy_exists_by_resembles"] = pd.crosstab(
-            df["resembles_fallacy"],
-            df["fallacy_exists"],
-            dropna=False
-        )
+    def _safe_list(self, value) -> list[str]:
+        if value is None:
+            return []
 
-        tables["fallacy_type_by_argument_scheme"] = pd.crosstab(
-            df["fallacy_type"],
-            df["argument_scheme"],
-            dropna=False
-        )
+        if isinstance(value, list):
+            return [str(item) for item in value if item is not None]
 
-        tables["argument_goal_by_basis"] = pd.crosstab(
-            df["argument_goal"],
-            df["argument_basis"],
-            dropna=False
-        )
+        return [str(value)]
 
-        return tables
+    def _word_count(self, text) -> int:
+        if text is None:
+            return 0
 
-    def _word_count(self, text: str | None) -> int:
+        text = str(text).strip()
+
         if not text:
             return 0
-        return len(str(text).split())
+
+        return len(text.split())
+
+    def _empty_text_count(self, df: pd.DataFrame, column: str) -> int:
+        if column not in df.columns:
+            return 0
+
+        return int((df[column].fillna("").astype(str).str.strip() == "").sum())
 
     def _value_counts(self, df: pd.DataFrame, column: str) -> dict:
         if column not in df.columns:
             return {}
-        return df[column].fillna("None").value_counts().to_dict()
+
+        return {
+            str(key): int(value)
+            for key, value in df[column].fillna("None").value_counts().items()
+        }
 
     def _numeric_stats(self, df: pd.DataFrame, column: str) -> dict:
-        if column not in df.columns:
+        if column not in df.columns or df.empty:
+            return {}
+
+        series = pd.to_numeric(df[column], errors="coerce").dropna()
+
+        if series.empty:
             return {}
 
         return {
-            "min": float(df[column].min()),
-            "max": float(df[column].max()),
-            "mean": float(df[column].mean()),
-            "median": float(df[column].median()),
-            "std": float(df[column].std()),
+            "min": float(series.min()),
+            "max": float(series.max()),
+            "mean": float(series.mean()),
+            "median": float(series.median()),
+            "std": float(series.std()) if len(series) > 1 else 0.0,
         }
+
+    def _cross_table(
+        self,
+        df: pd.DataFrame,
+        row_column: str,
+        column_column: str,
+    ) -> pd.DataFrame:
+        if row_column not in df.columns or column_column not in df.columns:
+            return pd.DataFrame()
+
+        return pd.crosstab(
+            df[row_column].fillna("None"),
+            df[column_column].fillna("None"),
+        )

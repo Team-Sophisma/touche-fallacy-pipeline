@@ -12,6 +12,24 @@ eda:
   compare_base_enhanced: true
   generate_plots: true
 
+outliers:
+  enabled: true
+  iqr_multiplier: 3.0
+  max_examples_per_metric: 50
+  metrics:
+    - source_word_count
+    - argument_word_count
+    - text_base_word_count
+    - text_enhanced_word_count
+    - base_claim_word_count
+    - base_supports_word_count
+    - base_support_count
+    - enhanced_claim_word_count
+    - enhanced_supports_word_count
+    - enhanced_support_count
+  group_columns:
+    - fallacy_type
+
 outputs:
   report_dir: data/reports/eda
   plots_dir: data/reports/eda/plots
