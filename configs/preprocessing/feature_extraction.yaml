@@ -1,0 +1,9 @@
+spacy_model: "en_core_web_sm"
+embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+
+inputs:
+  train_enriched: "data/processed/sentiment_analysis/enriched_train.jsonl"
+  test_enriched: "data/processed/sentiment_analysis/enriched_test.jsonl"
+
+outputs:
+  output_dir: "data/processed/features"
