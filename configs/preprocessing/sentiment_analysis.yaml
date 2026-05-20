@@ -15,10 +15,14 @@ sentiment:
   max_length: 512
 
 processing:
-  max_samples: 933
+  max_samples: null
   max_samples_per_fallacy_type: null
 
 outputs:
   output_dir: data/processed/sentiment_analysis
   train_csv: data/processed/sentiment_analysis/train_sentiment_samples.csv
+  test_csv: data/processed/sentiment_analysis/test_sentiment_samples.csv
   summary_json: data/processed/sentiment_analysis/train_sentiment_summary.json
+  test_summary_json: data/processed/sentiment_analysis/test_sentiment_summary.json
+  enriched_train_jsonl: data/processed/sentiment_analysis/enriched_train.jsonl
+  enriched_test_jsonl: data/processed/sentiment_analysis/enriched_test.jsonl

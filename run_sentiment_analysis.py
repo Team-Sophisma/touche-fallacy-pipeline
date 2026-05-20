@@ -42,14 +42,38 @@ def main() -> None:
         ),
     )
 
-    rows = service.create_train_rows()
-    summary = service.summarize_rows(rows)
-
     writer = SentimentReportWriter()
-    writer.write_csv(rows, sentiment_config["outputs"]["train_csv"])
-    writer.write_json(summary, sentiment_config["outputs"]["summary_json"])
+    outputs = sentiment_config["outputs"]
 
-    print(f"Sentiment analysis completed successfully. Rows written: {len(rows)}")
+    # ── Train split ──────────────────────────────────────────────
+    train_rows = service.create_train_rows()
+    train_summary = service.summarize_rows(train_rows)
+    train_enrichment = service.build_enrichment_map(train_rows)
+
+    writer.write_csv(train_rows, outputs["train_csv"])
+    writer.write_json(train_summary, outputs["summary_json"])
+    writer.write_enriched_jsonl(
+        raw_jsonl_path=dataset_config["paths"]["train"],
+        enrichment_map=train_enrichment,
+        output_path=outputs["enriched_train_jsonl"],
+    )
+    print(f"Train sentiment completed. Rows: {len(train_rows)}")
+
+    # ── Test split ───────────────────────────────────────────────
+    test_rows = service.create_test_rows()
+    test_summary = service.summarize_rows(test_rows)
+    test_enrichment = service.build_enrichment_map(test_rows)
+
+    writer.write_csv(test_rows, outputs["test_csv"])
+    writer.write_json(test_summary, outputs["test_summary_json"])
+    writer.write_enriched_jsonl(
+        raw_jsonl_path=dataset_config["paths"]["test"],
+        enrichment_map=test_enrichment,
+        output_path=outputs["enriched_test_jsonl"],
+    )
+    print(f"Test sentiment completed.  Rows: {len(test_rows)}")
+
+    print("Sentiment analysis & enrichment finished for both splits.")
 
 
 def _load_yaml(path: str) -> dict:
@@ -59,3 +83,4 @@ def _load_yaml(path: str) -> dict:
 
 if __name__ == "__main__":
     main()
+

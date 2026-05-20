@@ -22,14 +22,35 @@ class SentimentAnalysisService:
         self.max_samples_per_fallacy_type = max_samples_per_fallacy_type
 
     def create_train_rows(self) -> list[dict]:
-        samples = self._select_samples(self.dataset_adapter.load_train())
-        texts = [self._text_for_sample(sample) for sample in samples]
+        return self._create_rows(self.dataset_adapter.load_train())
+
+    def create_test_rows(self) -> list[dict]:
+        return self._create_rows(self.dataset_adapter.load_test())
+
+    def _create_rows(self, samples: list[TextSample]) -> list[dict]:
+        selected = self._select_samples(samples)
+        texts = [self._text_for_sample(sample) for sample in selected]
         sentiments = self.sentiment_analyzer.analyze_batch(texts)
 
         return [
             self._create_row(sample, text, sentiment)
-            for sample, text, sentiment in zip(samples, texts, sentiments)
+            for sample, text, sentiment in zip(selected, texts, sentiments)
         ]
+
+    @staticmethod
+    def build_enrichment_map(rows: list[dict]) -> dict[str, dict]:
+        """Build a mapping from sample ID to sentiment scores for JSONL enrichment."""
+        return {
+            row["id"]: {
+                "sentiment_positive": row["sentiment_scores"].get(
+                    "positive", 0.0,
+                ),
+                "sentiment_negative": row["sentiment_scores"].get(
+                    "negative", 0.0,
+                ),
+            }
+            for row in rows
+        }
 
     def summarize_rows(self, rows: list[dict]) -> dict:
         sentiment_labels = self._sentiment_labels(rows)

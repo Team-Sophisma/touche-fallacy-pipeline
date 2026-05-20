@@ -35,3 +35,31 @@ class SentimentReportWriter:
             ensure_ascii=False,
         )
         return serialized
+
+    def write_enriched_jsonl(
+        self,
+        raw_jsonl_path: str,
+        enrichment_map: dict[str, dict],
+        output_path: str,
+    ) -> None:
+        """Read raw JSONL, merge sentiment metadata per sample, write enriched JSONL."""
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        with (
+            open(raw_jsonl_path, "r", encoding="utf-8") as reader,
+            open(path, "w", encoding="utf-8") as writer,
+        ):
+            for line in reader:
+                item = json.loads(line)
+                sentiment = enrichment_map.get(item["id"], {})
+                item["sentiment_positive"] = sentiment.get(
+                    "sentiment_positive", 0.0,
+                )
+                item["sentiment_negative"] = sentiment.get(
+                    "sentiment_negative", 0.0,
+                )
+                writer.write(
+                    json.dumps(item, ensure_ascii=False) + "\n",
+                )
+
