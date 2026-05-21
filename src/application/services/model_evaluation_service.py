@@ -100,3 +100,75 @@ class ModelEvaluationService:
         plt.savefig(plot_path, dpi=300)
         plt.close()
         print(f"Model comparison plot saved to: {plot_path}")
+
+    def plot_training_curves(
+        self, 
+        task_name: str, 
+        model_name: str, 
+        training_history: list[dict]
+    ) -> None:
+        """Plot train/val loss and val accuracy/F1 curves per epoch."""
+        if not training_history:
+            print(f"[{model_name}] No training history to plot.")
+            return
+        
+        epochs = [h["epoch"] for h in training_history]
+        train_losses = [h.get("train_loss") for h in training_history]
+        val_losses = [h.get("val_loss") for h in training_history]
+        val_accs = [h.get("val_accuracy") for h in training_history]
+        val_f1s = [h.get("val_macro_f1") for h in training_history]
+        
+        fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+        
+        # --- Plot 1: Train vs Val Loss ---
+        ax1 = axes[0]
+        if any(v is not None for v in train_losses):
+            valid_epochs_train = [e for e, v in zip(epochs, train_losses) if v is not None]
+            valid_train = [v for v in train_losses if v is not None]
+            ax1.plot(valid_epochs_train, valid_train, 'o-', color='#e74c3c', linewidth=2, markersize=6, label='Train Loss')
+        
+        if any(v is not None for v in val_losses):
+            valid_epochs_val = [e for e, v in zip(epochs, val_losses) if v is not None]
+            valid_val = [v for v in val_losses if v is not None]
+            ax1.plot(valid_epochs_val, valid_val, 's-', color='#3498db', linewidth=2, markersize=6, label='Validation Loss')
+        
+        ax1.set_xlabel('Epoch', fontsize=12)
+        ax1.set_ylabel('Loss', fontsize=12)
+        ax1.set_title(f'Training & Validation Loss\n{task_name} ({model_name})', fontsize=13, fontweight='bold')
+        ax1.legend(fontsize=11)
+        ax1.grid(True, alpha=0.3)
+        ax1.set_xticks(epochs)
+        
+        # --- Plot 2: Val Accuracy & Macro F1 ---
+        ax2 = axes[1]
+        if any(v is not None for v in val_accs):
+            valid_epochs_acc = [e for e, v in zip(epochs, val_accs) if v is not None]
+            valid_accs = [v for v in val_accs if v is not None]
+            ax2.plot(valid_epochs_acc, valid_accs, 'o-', color='#2ecc71', linewidth=2, markersize=6, label='Val Accuracy')
+        
+        if any(v is not None for v in val_f1s):
+            valid_epochs_f1 = [e for e, v in zip(epochs, val_f1s) if v is not None]
+            valid_f1 = [v for v in val_f1s if v is not None]
+            ax2.plot(valid_epochs_f1, valid_f1, 's-', color='#9b59b6', linewidth=2, markersize=6, label='Val Macro F1')
+        
+        ax2.set_xlabel('Epoch', fontsize=12)
+        ax2.set_ylabel('Score', fontsize=12)
+        ax2.set_title(f'Validation Accuracy & Macro F1\n{task_name} ({model_name})', fontsize=13, fontweight='bold')
+        ax2.legend(fontsize=11)
+        ax2.grid(True, alpha=0.3)
+        ax2.set_ylim(0, 1.05)
+        ax2.set_xticks(epochs)
+        
+        plt.tight_layout()
+        plot_path = self.output_dir / f"{task_name}_{model_name}_training_curves.png"
+        plt.savefig(plot_path, dpi=300)
+        plt.close()
+        
+        # Also save the history as JSON
+        history_path = self.output_dir / f"{task_name}_{model_name}_training_history.json"
+        import json as _json
+        with open(history_path, "w", encoding="utf-8") as f:
+            _json.dump(training_history, f, indent=2)
+        
+        print(f"[{model_name}] Training curves saved to: {plot_path}")
+        print(f"[{model_name}] Training history saved to: {history_path}")

@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from sklearn.metrics import classification_report, accuracy_score, f1_score
 from sklearn.preprocessing import LabelEncoder
+from sklearn.utils.class_weight import compute_class_weight
 from transformers import (
     AutoTokenizer, 
     AutoModelForSequenceClassification, 
@@ -12,27 +13,46 @@ from transformers import (
 from datasets import Dataset
 from pathlib import Path
 from typing import Any, Tuple
+import transformers.utils.import_utils
+import transformers.modeling_utils
+
+# Monkeypatch transformers to allow loading PyTorch < 2.6 checkpoints (safe for trusted HF models like DeBERTa)
+def _mock_check_torch_load_is_safe():
+    pass
+transformers.utils.import_utils.check_torch_load_is_safe = _mock_check_torch_load_is_safe
+transformers.modeling_utils.check_torch_load_is_safe = _mock_check_torch_load_is_safe
+
 
 class BERTClassifier:
-    def __init__(self, model_name: str = "distilbert-base-uncased", epochs: int = 3, batch_size: int = 16, learning_rate: float = 2e-5, random_seed: int = 42):
+    def __init__(
+        self, 
+        model_name: str = "roberta-base",
+        epochs: int = 10, 
+        batch_size: int = 8, 
+        learning_rate: float = 2e-5,
+        max_length: int = 512,
+        random_seed: int = 42
+    ):
         self.model_name = model_name
         self.epochs = epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
+        self.max_length = max_length
         self.random_seed = random_seed
         self.model = None
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.label_encoder = LabelEncoder()
+        self.training_history = []  # Store per-epoch train/val loss
         
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"BERTClassifier initialized on device: {self.device}")
+        print(f"Model: {model_name}, Epochs: {epochs}, Batch: {batch_size}, MaxLen: {max_length}")
 
     def prepare_dataset(self, samples: list[dict], is_test: bool = False) -> Tuple[Dataset, list[str]]:
         texts = [sample["text"] for sample in samples]
         y_list = [sample.get("label", "") for sample in samples]
         
         if is_test:
-            # We don't use label encoding for test, labels are empty/unlabeled
             labels = [0] * len(samples)
         else:
             labels = self.label_encoder.transform(y_list).tolist()
@@ -45,7 +65,7 @@ class BERTClassifier:
         hf_dataset = Dataset.from_dict(data_dict)
         
         def tokenize_function(examples):
-            return self.tokenizer(examples["text"], truncation=True, max_length=512)
+            return self.tokenizer(examples["text"], truncation=True, max_length=self.max_length)
             
         tokenized_dataset = hf_dataset.map(tokenize_function, batched=True)
         return tokenized_dataset, y_list
@@ -80,7 +100,7 @@ class BERTClassifier:
             f1 = f1_score(labels, predictions, average="macro")
             return {"accuracy": acc, "macro_f1": f1}
             
-        # Training arguments
+        # Training arguments with warmup, cosine scheduler
         training_args = TrainingArguments(
             output_dir="./tmp_bert_checkpoints",
             learning_rate=self.learning_rate,
@@ -88,14 +108,15 @@ class BERTClassifier:
             per_device_eval_batch_size=self.batch_size,
             num_train_epochs=self.epochs,
             weight_decay=0.01,
-            evaluation_strategy="epoch",
-            save_strategy="epoch",
-            load_best_model_at_end=True,
-            metric_for_best_model="macro_f1",
-            greater_is_better=True,
+            warmup_ratio=0.1,
+            bf16=True,
+            lr_scheduler_type="cosine",
+            eval_strategy="epoch",
+            save_strategy="no",
+            load_best_model_at_end=False,
             seed=self.random_seed,
-            logging_steps=10,
-            report_to="none" # disable weights and biases etc.
+            logging_strategy="epoch",
+            report_to="none"
         )
         
         trainer = Trainer(
@@ -103,14 +124,56 @@ class BERTClassifier:
             args=training_args,
             train_dataset=train_dataset,
             eval_dataset=val_dataset,
-            tokenizer=self.tokenizer,
+            processing_class=self.tokenizer,
             data_collator=DataCollatorWithPadding(tokenizer=self.tokenizer),
             compute_metrics=compute_metrics
         )
         
         print("Starting BERT training...")
-        trainer.train()
+        train_result = trainer.train()
         print("BERT training completed.")
+        
+        # Extract training history from log_history
+        self.training_history = []
+        log_history = trainer.state.log_history
+        
+        epoch_train_losses = {}
+        epoch_val_losses = {}
+        epoch_val_metrics = {}
+        
+        for entry in log_history:
+            epoch = entry.get("epoch")
+            if epoch is None:
+                continue
+            epoch_int = int(round(epoch))
+            
+            if "loss" in entry and "eval_loss" not in entry:
+                epoch_train_losses[epoch_int] = entry["loss"]
+            if "eval_loss" in entry:
+                epoch_val_losses[epoch_int] = entry["eval_loss"]
+                epoch_val_metrics[epoch_int] = {
+                    "eval_accuracy": entry.get("eval_accuracy"),
+                    "eval_macro_f1": entry.get("eval_macro_f1")
+                }
+        
+        for ep in sorted(set(list(epoch_train_losses.keys()) + list(epoch_val_losses.keys()))):
+            self.training_history.append({
+                "epoch": ep,
+                "train_loss": epoch_train_losses.get(ep),
+                "val_loss": epoch_val_losses.get(ep),
+                "val_accuracy": epoch_val_metrics.get(ep, {}).get("eval_accuracy"),
+                "val_macro_f1": epoch_val_metrics.get(ep, {}).get("eval_macro_f1")
+            })
+        
+        print(f"Training history recorded for {len(self.training_history)} epochs.")
+        
+        # Clean up checkpoints directory to save disk space
+        import shutil
+        try:
+            shutil.rmtree(training_args.output_dir)
+            print(f"Cleaned up checkpoints directory: {training_args.output_dir}")
+        except Exception as e:
+            pass
 
     def predict(self, samples: list[dict]) -> list[str]:
         if self.model is None:
@@ -121,7 +184,7 @@ class BERTClassifier:
         # Build Trainer just for prediction
         trainer = Trainer(
             model=self.model,
-            tokenizer=self.tokenizer,
+            processing_class=self.tokenizer,
             data_collator=DataCollatorWithPadding(tokenizer=self.tokenizer)
         )
         

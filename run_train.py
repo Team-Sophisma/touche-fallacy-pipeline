@@ -1,6 +1,7 @@
 import argparse
 import json
 from pathlib import Path
+import numpy as np
 from src.infrastructure.models.xgboost_model import XGBoostClassifier
 from src.infrastructure.models.bert_model import BERTClassifier
 from src.application.services.model_evaluation_service import ModelEvaluationService
@@ -53,10 +54,22 @@ def main() -> None:
         help="Models to train: xgboost and/or bert"
     )
     parser.add_argument(
+        "--bert_model",
+        type=str,
+        default="microsoft/deberta-v3-base",
+        help="Pretrained model name for BERT fine-tuning"
+    )
+    parser.add_argument(
         "--bert_epochs", 
         type=int, 
-        default=3,
+        default=10,
         help="Number of epochs for BERT fine-tuning"
+    )
+    parser.add_argument(
+        "--bert_batch_size",
+        type=int,
+        default=8,
+        help="Batch size for BERT fine-tuning"
     )
     
     args = parser.parse_args()
@@ -108,13 +121,37 @@ def main() -> None:
         print(f"XGBoost Validation Accuracy: {xgb_metrics['accuracy']:.4f}")
         print(f"XGBoost Validation Macro F1: {xgb_metrics['macro_f1']:.4f}")
         
-        # Save report and confusion matrix
+        # Save report and confusion matrix for Validation
         evaluator.generate_report(
             task_name=args.task,
             model_name="xgboost",
             metrics=xgb_metrics,
             y_true=y_val.tolist(),
             y_pred=xgb_metrics["predictions"]
+        )
+        
+        # Save report and confusion matrix for Train
+        print("Evaluating XGBoost on train set...")
+        xgb_train_metrics = xgb_clf.evaluate(X_train, y_train)
+        evaluator.generate_report(
+            task_name=args.task,
+            model_name="xgboost_train",
+            metrics=xgb_train_metrics,
+            y_true=y_train.tolist(),
+            y_pred=xgb_train_metrics["predictions"]
+        )
+        
+        # Save report and confusion matrix for Combined (Train + Validation)
+        print("Evaluating XGBoost on combined (train + validation) set...")
+        X_combined = np.vstack([X_train, X_val])
+        y_combined = np.concatenate([y_train, y_val])
+        xgb_combined_metrics = xgb_clf.evaluate(X_combined, y_combined)
+        evaluator.generate_report(
+            task_name=args.task,
+            model_name="xgboost_combined",
+            metrics=xgb_combined_metrics,
+            y_true=y_combined.tolist(),
+            y_pred=xgb_combined_metrics["predictions"]
         )
         
         comparisons["XGBoost"] = {
@@ -139,16 +176,29 @@ def main() -> None:
     # 5. Train and Evaluate BERT
     if "bert" in args.models:
         print("\n--- Training BERT Model ---")
-        bert_clf = BERTClassifier(epochs=args.bert_epochs)
+        bert_clf = BERTClassifier(
+            model_name=args.bert_model,
+            epochs=args.bert_epochs,
+            batch_size=args.bert_batch_size
+        )
         
-        print("Fine-tuning DistilBERT on text...")
+        print(f"Fine-tuning {args.bert_model} on text...")
         bert_clf.fit(train_samples, val_samples)
+        
+        # Plot training curves (loss per epoch)
+        if bert_clf.training_history:
+            evaluator.plot_training_curves(
+                task_name=args.task,
+                model_name="bert",
+                training_history=bert_clf.training_history
+            )
         
         print("Evaluating on validation set...")
         bert_metrics = bert_clf.evaluate(val_samples)
         print(f"BERT Validation Accuracy: {bert_metrics['accuracy']:.4f}")
         print(f"BERT Validation Macro F1: {bert_metrics['macro_f1']:.4f}")
         
+        # Save report and confusion matrix for Validation
         y_val = [s.get("label", "") for s in val_samples]
         evaluator.generate_report(
             task_name=args.task,
@@ -156,6 +206,31 @@ def main() -> None:
             metrics=bert_metrics,
             y_true=y_val,
             y_pred=bert_metrics["predictions"]
+        )
+        
+        # Save report and confusion matrix for Train
+        print("Evaluating BERT on train set...")
+        bert_train_metrics = bert_clf.evaluate(train_samples)
+        y_train = [s.get("label", "") for s in train_samples]
+        evaluator.generate_report(
+            task_name=args.task,
+            model_name="bert_train",
+            metrics=bert_train_metrics,
+            y_true=y_train,
+            y_pred=bert_train_metrics["predictions"]
+        )
+        
+        # Save report and confusion matrix for Combined (Train + Validation)
+        print("Evaluating BERT on combined (train + validation) set...")
+        combined_samples = train_samples + val_samples
+        bert_combined_metrics = bert_clf.evaluate(combined_samples)
+        y_combined = [s.get("label", "") for s in combined_samples]
+        evaluator.generate_report(
+            task_name=args.task,
+            model_name="bert_combined",
+            metrics=bert_combined_metrics,
+            y_true=y_combined,
+            y_pred=bert_combined_metrics["predictions"]
         )
         
         comparisons["BERT"] = {
