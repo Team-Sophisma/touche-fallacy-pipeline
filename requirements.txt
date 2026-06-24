@@ -5,6 +5,7 @@ PyYAML
 
 # Machine learning baseline models
 scikit-learn
+xgboost
 
 # HuggingFace / transformer models
 torch
@@ -12,6 +13,8 @@ transformers
 datasets
 evaluate
 accelerate
+sentence-transformers
+umap-learn
 
 # Entity masking / NER
 spacy
