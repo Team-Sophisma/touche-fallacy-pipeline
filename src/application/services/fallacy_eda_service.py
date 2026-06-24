@@ -28,16 +28,28 @@ class FallacyEDAService:
     def _run_split(self, split_name: str, samples, examples_per_fallacy: int) -> None:
         df = self.dataset_profiler.samples_to_dataframe(samples)
         summary = self.dataset_profiler.summarize_dataframe(df)
-        architecture_profile = self.architecture_profiler.profile(
+        profiles = self.architecture_profiler.profile(
             df,
             examples_per_fallacy=examples_per_fallacy,
         )
 
         self.writer.write_dataframe_csv(df, f"{split_name}_fallacy_profile.csv")
         self.writer.write_json(summary, f"{split_name}_summary.json")
-        self.writer.write_json(
-            architecture_profile,
+        self.writer.write_profiles_json(
+            profiles,
             f"{split_name}_fallacy_architecture_profile.json",
+        )
+        self.writer.write_profiles_markdown(
+            profiles,
+            f"{split_name}_fallacy_architecture_profile.md",
+        )
+        self.writer.write_architecture_matrix(
+            self.architecture_profiler.architecture_matrix(profiles),
+            f"{split_name}_fallacy_architecture_matrix.csv",
+        )
+        self.writer.write_examples_per_fallacy(
+            profiles,
+            f"{split_name}_examples",
         )
 
         if self.outlier_analyzer is not None:
